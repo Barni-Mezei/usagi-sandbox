@@ -97,19 +97,19 @@ function M.update_label(label)
 end
 
 ---Aligns a box inside a container box along 2 axis
----@param box     table   The box to align inside the parent 
----@param parent  table   The container for the box 
----@param v_align integer The vertical alignment of the box   (-1: top,  0: center, 1: bottom)
----@param h_align integer The horizontal alignment of the box (-1: left, 0: center, 1: right )
----@return UI.Box box     The box, aligned inside the parent 
+---@param box      table   The box to align inside the parent 
+---@param parent   table   The container for the box 
+---@param v_align? integer The vertical alignment of the box   (-1: top,  0: center, 1: bottom)
+---@param h_align? integer The horizontal alignment of the box (-1: left, 0: center, 1: right )
+---@return UI.Box|UI.Label box The box, aligned inside the parent 
 function M.align_box(box, parent, v_align, h_align)
     local mx = box.mx or 0
     local my = box.mx or 0
 
     local x = 0
     local y = 0
-    local w = parent.w + mx*2
-    local h = parent.h + my*2
+    local w = box.w + mx*2
+    local h = box.h + my*2
 
     if v_align == 0 then x = parent.w/2 - w/2 end
     if v_align == 1 then x = parent.w - w end
