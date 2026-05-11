@@ -1,4 +1,4 @@
----@diagnostic disable: inject-field
+---@diagnostic disable: inject-field, cast-local-type
 ---@diagnostic disable: return-type-mismatch
 
 ---@class UI
@@ -78,8 +78,8 @@ function M.create_label(text, v_align, h_align)
 
     local new_label = M.create_box(0, 0, w, h)
     new_label.text = text
-    new_label.v_align = 0
-    new_label.h_align = 0
+    new_label.v_align = v_align or 0
+    new_label.h_align = h_align or 0
 
     return new_label
 end
@@ -97,14 +97,14 @@ function M.update_label(label)
 end
 
 ---Aligns a box inside a container box along 2 axis
----@param box      table   The box to align inside the parent 
----@param parent   table   The container for the box 
+---@param box    UI.Box|UI.Label The box to align inside the parent 
+---@param parent UI.Box|UI.Label The container for the box 
 ---@param v_align? integer The vertical alignment of the box   (-1: top,  0: center, 1: bottom)
 ---@param h_align? integer The horizontal alignment of the box (-1: left, 0: center, 1: right )
 ---@return UI.Box|UI.Label box The box, aligned inside the parent 
-function M.align_box(box, parent, v_align, h_align)
+function M.align_item(box, parent, v_align, h_align)
     local mx = box.mx or 0
-    local my = box.mx or 0
+    local my = box.my or 0
 
     local x = 0
     local y = 0
@@ -120,14 +120,22 @@ function M.align_box(box, parent, v_align, h_align)
     x += mx
     y += my
 
-    return {
-        x = x,
-        y = y,
+    local out = {
+        x = parent.x + x,
+        y = parent.y + y,
         w = box.w,
         h = box.h,
         mx = mx,
         my = my,
     }
+
+    if box.text ~= nil then
+        out.text = box.text
+        out.v_align = box.v_align
+        out.h_align = box.h_align
+    end
+
+    return out
 end
 
 ---Renders a ui item on the screen
@@ -137,10 +145,14 @@ function M.render_item(item, debug_mode)
     -- Render label text
     if item.text ~= nil then
         local tw, th = usagi.measure_text(item.text)
-        local text_container = M.create_box({w = tw, h = th})
+        local tc = M.create_box({w = tw, h = th})
+        tc = M.align_item(tc, item, 0, 0)
 
-        local text_container = M.align_box(text_container, item, item.v_align, item.h_align)
-        gfx.text(item.text, text_container.x, text_container.y, gfx.COLOR_WHITE)
+        if debug_mode then
+            gfx.rect(tc.x, tc.y, tc.w, tc.h, gfx.COLOR_BLUE)
+        end
+
+        gfx.text(item.text, tc.x, tc.y, gfx.COLOR_WHITE)
     end
 
     if debug_mode then

@@ -1,4 +1,5 @@
----@diagnostic disable: cast-local-type
+---@diagnostic disable: inject-field, cast-local-type
+---@diagnostic disable: return-type-mismatch
 
 local ui = require("lib.ui")
 local grid = require("lib.grid")
@@ -38,9 +39,17 @@ local mx, my = 0, 0
 local cx, cy = 0, 0
 
 Settings = {
-	grid_width = 20,
-	grid_height = 20,
+	grid_width = 60,
+	grid_height = 60,
+	cell_size = 1,
 }
+
+Settings.cell_size = math.floor(
+	math.min(
+		usagi.GAME_W / State.grid.width,
+		usagi.GAME_H / State.grid.height
+	)
+)
 
 Materials = {
 	{
@@ -86,6 +95,8 @@ function _init()
 
 	input.set_mouse_visible(false)
 
+	Random = require("lib.random")
+
 	State = {
 		-- UI
 		selected_material = 2,
@@ -101,6 +112,15 @@ function _init()
 	State.buffer = grid.copy_grid(State.grid)
 end
 
+-- UI stuff
+
+local screen_box = ui.create_box(0, 0, usagi.GAME_W, usagi.GAME_H)
+
+local grid_box = ui.create_box(0, 0, State.grid.width * Settings.cell_size, State.grid.height * Settings.cell_size)
+grid_box = ui.align_item(grid_box, screen_box, 0, 0)
+
+
+
 local function _update_ui()
 	-- Single button controls
 	if input.key_pressed(input.KEY_SPACE) then State.is_paused = not State.is_paused end
@@ -108,16 +128,32 @@ local function _update_ui()
 	if input.pressed(input.LEFT)  then State.selected_material = util.clamp(State.selected_material - 1, 2, #Materials) end
 	if input.pressed(input.RIGHT) then State.selected_material = util.clamp(State.selected_material + 1, 2, #Materials) end
 
+	if input.pressed(input.UP)   then State.brush_size = util.clamp(State.brush_size + 1, 1, 5) end
+	if input.pressed(input.DOWN) then State.brush_size = util.clamp(State.brush_size - 1, 1, 5) end
+
+
 	-- Allow cell manipulation if the cursor is over the grid
 	if cx ~= -1 or cy ~= -1 then
 		-- Left click to place
 		if input.mouse_held(input.MOUSE_LEFT) then
-			grid.set_cell(State.grid, cx, cy, State.selected_material)
+			foreach_brush(
+				grid_box, State.grid, Settings.cell_size,
+				cx, cy, State.brush_size,
+				function (cell_x, cell_y, screen_x, screen_y)
+					grid.set_cell(State.grid, cell_x, cell_y, State.selected_material)
+				end
+			)
 		end
 	
 		-- Right click to erase
 		if input.mouse_held(input.MOUSE_RIGHT) then
-			grid.set_cell(State.grid, cx, cy, get_material_index("Air"))
+			foreach_brush(
+				grid_box, State.grid, Settings.cell_size,
+				cx, cy, State.brush_size,
+				function (cell_x, cell_y, screen_x, screen_y)
+					grid.set_cell(State.grid, cell_x, cell_y, get_material_index("Air"))
+				end
+			)
 		end
 	end
 
@@ -126,6 +162,9 @@ end
 
 function _update(dt)
 	mx, my = input.mouse()
+	cx, cy = screen_to_cell(grid_box, Settings.cell_size, mx, my)
+
+
 
 	-- Update the UI if the cursor is on screen
 	if util.point_in_rect({x = mx, y = my}, {x = 0, y = 0, w = usagi.GAME_W, h = usagi.GAME_H}) then
@@ -136,60 +175,52 @@ end
 function _draw(dt)
 	gfx.clear(gfx.COLOR_BLACK)
 
-	local screen_box = ui.create_box(0, 0, usagi.GAME_W, usagi.GAME_H)
-
-	local cell_size = math.floor(
-		math.min(
-			usagi.GAME_W / State.grid.width,
-			usagi.GAME_H / State.grid.height
-		)
-	)
-
-	local grid_box = ui.create_box(0, 0, State.grid.width * cell_size, State.grid.height * cell_size)
-	grid_box = ui.align_box(grid_box, screen_box, 0, 0)
-
 	-- Render grid
 	grid.foreach(State.grid, function (x, y, value)
-		local sx, sy = cell_to_screen(grid_box, cell_size, x, y)
+		local sx, sy = cell_to_screen(grid_box, Settings.cell_size, x, y)
+
+		-- Use the Rng for coordinate hashing
+		local r = Random.create_rng(y*Settings.grid_width*100 + x + value*4)
+
 		gfx.rect_fill(
 			sx, sy,
-			cell_size, cell_size,
-			Materials[value].color[1]
+			Settings.cell_size, Settings.cell_size,
+			r.rand_item(Materials[value].color)
 		)
 	end)
 
-
 	-- Render UI
-	--ui.draw_label(f("[ %s ]", menu_items[State.selected_menu].title), gfx.COLOR_WHITE, 0, -1, 1)
+	local material_label = ui.create_label(f("[ %s ]", Materials[State.selected_material].title))
+	material_label.mx = 4
+	material_label = ui.align_item(material_label, screen_box, 1, -1)
 
+	local brush_label = ui.create_label(f("Brush: %d", State.brush_size))
+	brush_label.mx = 4
+	brush_label = ui.align_item(brush_label, screen_box, 1, -1)
+	brush_label.y += material_label.h
+
+	ui.render_item(material_label)
+	ui.render_item(brush_label)
+
+	-- Pause text
 	if State.is_paused then
-		local pause_label = ui.create_label("PAUSED", 0, 0)
-		pause_label = ui.align_box(pause_label, screen_box, 0, -1)
+		local pause_label = ui.create_label("PAUSED")
+		pause_label.my += 8
+		pause_label = ui.align_item(pause_label, screen_box, 0, -1)
 
-		ui.render_item(pause_label, true)
+		ui.render_item(pause_label)
 	end
 
-	-- Render debug stats
-	--[[if usagi.IS_DEV then
-		ui.draw_label(f("Pool size: %d", #pool.objects), gfx.COLOR_LIGHT_GRAY, 1, -1)
-		ui.draw_label(f("clr: %s", (selection_reset and "true" or "false")), gfx.COLOR_LIGHT_GRAY, 1, -1, 1)
-		ui.draw_label(f("B: %d", hovered_ball_index), gfx.COLOR_LIGHT_GRAY, 1, -1, 2)
-		ui.draw_label(f("C: %d", hovered_constraint_index), gfx.COLOR_LIGHT_GRAY, 1, -1, 3)
+	-- Render brush preview and cursor
+	if cx ~= -1 or cy ~= -1 then
+		foreach_brush(
+			grid_box, State.grid, Settings.cell_size,
+			cx, cy, State.brush_size,
+			function (cell_x, cell_y, screen_x, screen_y)
+				gfx.rect(screen_x, screen_y, Settings.cell_size, Settings.cell_size, gfx.COLOR_LIGHT_GRAY)
+			end
+		)
+	end
 
-		local s = ""
-		for obj_index, _ in pairs(selected_balls) do
-			s = s..tostring(obj_index)..", "
-		end
-
-		local s, m, h = get_time(util.round(usagi.elapsed))
-
-		ui.draw_label(f("Time: %02d:%02d:%02d", h, m, s), gfx.COLOR_LIGHT_GRAY, 1, 1, -1)
-		ui.draw_label(f("Delta: %.5f", dt), gfx.COLOR_LIGHT_GRAY, 1, 1, 0)
-	end]]
-
-	-- Render the mouse cursor
-	cx, cy = screen_to_cell(grid_box, cell_size, mx, my)
-	local sx, sy = cell_to_screen(grid_box, cell_size, cx, cy)
-	gfx.rect(sx, sy, cell_size, cell_size, gfx.COLOR_LIGHT_GRAY)
 	gfx.spr(2, mx - 8, my - 8)
 end
