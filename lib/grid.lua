@@ -46,7 +46,11 @@ end
 ---@param grid Grid.Grid  The grid to copy
 ---@return Grid.Grid grid The copy of `grid`
 function M.copy_grid(grid)
-    local out = {}
+    local out = {
+        width = grid.width or 0,
+        height = grid.height or 0,
+        default = grid.default or 0,
+    }
 
     for y, line in ipairs(grid) do
         local out_line = {} 

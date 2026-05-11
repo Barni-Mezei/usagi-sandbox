@@ -10,16 +10,25 @@ require("lib.misc")
 --[[
 TODO:
 
-- chunked updating (quad tree?)
+Updating cells:
+- Generate new state into State.buffer
+- then copyting buffer to the grid
+
+cell updates -> material callback? (slow)
 
 Materials:
-- sand
-- water
-- wall
-- acid
-- wood
-- fire
-- black hole
+- sand (falls, piles up)
+- water (falls, flows)
+- wall (static, acid can destroy it)
+- acid (it's like water, but has a chance to destroy solids)
+- wood (same as wall, but can be set on fire and is weaker towards acid)
+- fire (spreads to nearby flammable cells, creates smoke)
+- smoke (rises up)
+- methane (like smoke, but is flammable)
+- black hole (static, consumes everything)
+
+Future:
+- chunked updating (quad tree?)
 
 ]]
 
@@ -46,8 +55,8 @@ Settings = {
 
 Settings.cell_size = math.floor(
 	math.min(
-		usagi.GAME_W / State.grid.width,
-		usagi.GAME_H / State.grid.height
+		usagi.GAME_W / Settings.grid_width,
+		usagi.GAME_H / Settings.grid_height
 	)
 )
 
@@ -83,8 +92,19 @@ local function get_material_index(name)
 		if m.title == name then return i end
 	end
 
-	-- Default to sand
 	return -1
+end
+
+-- UI stuff
+
+local screen_box = {}
+local grid_box = {}
+
+local function _init_ui()
+	screen_box = ui.create_box(0, 0, usagi.GAME_W, usagi.GAME_H)
+
+	grid_box = ui.create_box(0, 0, State.grid.width * Settings.cell_size, State.grid.height * Settings.cell_size)
+	grid_box = ui.align_item(grid_box, screen_box, 0, 0)
 end
 
 function _init()
@@ -110,16 +130,9 @@ function _init()
 	-- Pre generate the grid and the back buffer
 	State.grid   = grid.create_grid(Settings.grid_width, Settings.grid_height, get_material_index("Air"))
 	State.buffer = grid.copy_grid(State.grid)
+
+	_init_ui()
 end
-
--- UI stuff
-
-local screen_box = ui.create_box(0, 0, usagi.GAME_W, usagi.GAME_H)
-
-local grid_box = ui.create_box(0, 0, State.grid.width * Settings.cell_size, State.grid.height * Settings.cell_size)
-grid_box = ui.align_item(grid_box, screen_box, 0, 0)
-
-
 
 local function _update_ui()
 	-- Single button controls
@@ -164,12 +177,26 @@ function _update(dt)
 	mx, my = input.mouse()
 	cx, cy = screen_to_cell(grid_box, Settings.cell_size, mx, my)
 
-
-
 	-- Update the UI if the cursor is on screen
 	if util.point_in_rect({x = mx, y = my}, {x = 0, y = 0, w = usagi.GAME_W, h = usagi.GAME_H}) then
 		_update_ui()
 	end
+
+	-- Update cells
+	grid.foreach(State.grid, function (x, y, value)
+		local cell = value
+
+		if cell == get_material_index("Sand") then
+			if grid.get_cell(State.grid, x, y + 1) == get_material_index("Air") then
+				cell = get_material_index("Air")
+			end
+		end
+
+		grid.set_cell(State.buffer, x, y, cell)
+	end)
+
+	-- Copy buffer
+	State.grid = grid.copy_grid(State.buffer)
 end
 
 function _draw(dt)
