@@ -20,6 +20,42 @@ end
 -- Alias for string formatting
 f = string.format
 
+function dump(value, depth)
+	local d = depth or 1
+	local t = tostring(value)
+
+	if type(value) == "nil" then io.write("\27[90mnil\27[m") end
+	if type(value) == "number" then io.write(f("\27[36m%d\27[m", t)) end
+	if type(value) == "string" then io.write(f("\27[33m\"%s\"\27[m", t)) end
+	if type(value) == "boolean" then io.write(f("%s\27[m", value and "\27[32mtrue" or "\27[31mfalse")) end
+	if type(value) == "function" then io.write(f("\27[90m%s()\27[m", t)) end
+	if type(value) == "table" then
+		local indent = string.rep("    ", d)
+		local indent_small = string.rep("    ", d - 1)
+
+		-- Empty table
+		if next(value) == nil then
+			io.write("{}")
+		else
+			io.write("{\n")
+			for k, v in pairs(value) do
+				if type(k) == "number" then
+					io.write(f("%s\27[36m#%s\27[m = ", indent, tostring(k)))
+				else
+					io.write(indent..tostring(k).." = ")
+				end
+
+				dump(v, d + 1)
+
+				io.write(",\n")
+			end
+			io.write(indent_small.."}")
+		end
+	end
+
+	if d == 1 then io.write("\n") end
+end
+
 function screen_to_cell(grid_box, cell_size, screen_x, screen_y)
 	local x = math.ceil((screen_x - grid_box.x +1) / cell_size)
 	local y = math.ceil((screen_y - grid_box.y +1) / cell_size)
