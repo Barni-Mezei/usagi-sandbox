@@ -1,4 +1,8 @@
 This is a simple falling sand simulation
+Materials:
+- **sand**: It falls down, and forms piles
+- **concrete**: It stays in place and stops sand from falling
+- **water**: This material flows
 
 Made with the [Usagi](https://github.com/brettchalupa/usagi) engine
 
