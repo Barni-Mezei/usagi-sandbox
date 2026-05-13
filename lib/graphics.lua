@@ -16,13 +16,13 @@ function gfx.line_t(pointA, pointB, color) gfx.line(pointA.x, pointA.y, pointB.x
 
 ---Same as `gfx.rect()` but it draws the rectangle with a dotted line
 function gfx.rect_dot(x, y, w, h, color)
-    for dx = x, x + w, 2 do
-        gfx.pixel(x + dx, y, color)
-        gfx.pixel(x + dx, y + h, color)
+    for dx = x, x + w - 1, 2 do
+        gfx.pixel(dx, y, color)
+        gfx.pixel(dx, y + h - 1, color)
     end
 
-    for dy = y, y + h, 2 do
-        gfx.pixel(x, y + dy, color)
-        gfx.pixel(x + w,y + dy, color)
+    for dy = y, y + h - 1, 2 do
+        gfx.pixel(x, dy, color)
+        gfx.pixel(x + w - 1, dy, color)
     end
 end
