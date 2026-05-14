@@ -125,7 +125,7 @@ function _init()
 	State.buffer = grid.copy_grid(State.grid)
 
 	-- Main grid (center)
-	Grid_box = ui.create_box(0, 0, State.grid.width * Settings.cell_size, State.grid.height * Settings.cell_size)
+	Grid_box = ui.create_box(0, 0, State.grid.width*Settings.cell_size, State.grid.height*Settings.cell_size)
 	--Grid_box.fix_size = true
 	--Grid_box.min_w = State.grid.width * Settings.cell_size
 	--Grid_box.min_h = State.grid.height * Settings.cell_size
