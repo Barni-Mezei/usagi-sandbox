@@ -22,8 +22,8 @@ function M.init()
 end
 
 ---Appends an object into the object pool, or replaces an inactive one
----@param obj      table  The object to add to the pool
----@param obj_type string The type of the object
+---@param obj       table  The object to add to the pool
+---@param obj_type? string The type of the object
 ---@return number index   Returns the index of the added object or -1 on error
 function M.add_object(obj, obj_type)
     -- Set object type (if provided)

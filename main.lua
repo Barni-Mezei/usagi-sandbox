@@ -181,8 +181,9 @@ local function handle_controls()
 	if input.pressed(input.LEFT)  then State.selected_material = util.clamp(State.selected_material - 1, 2, #Materials) end
 	if input.pressed(input.RIGHT) then State.selected_material = util.clamp(State.selected_material + 1, 2, #Materials) end
 
-	if input.pressed(input.UP)   then State.brush_size = util.clamp(State.brush_size + 1, 1, 5) end
-	if input.pressed(input.DOWN) then State.brush_size = util.clamp(State.brush_size - 1, 1, 5) end
+	local s = input.mouse_scroll()
+	if s > 0 then State.brush_size = util.clamp(State.brush_size + 1, 1, 5) end
+	if s < 0 then State.brush_size = util.clamp(State.brush_size - 1, 1, 5) end
 
 	-- Allow cell manipulation if the cursor is over the grid
 	if cx ~= -1 or cy ~= -1 then

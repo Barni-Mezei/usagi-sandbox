@@ -16,13 +16,26 @@ function gfx.line_t(pointA, pointB, color) gfx.line(pointA.x, pointA.y, pointB.x
 
 ---Same as `gfx.rect()` but it draws the rectangle with a dotted line
 function gfx.rect_dot(x, y, w, h, color)
-    for dx = x, x + w - 1, 2 do
-        gfx.pixel(dx, y, color)
-        gfx.pixel(dx, y + h - 1, color)
+    for dx = x, x + w, 2 do
+        gfx.pixel(x + dx, y, color)
+        gfx.pixel(x + dx, y + h, color)
     end
 
-    for dy = y, y + h - 1, 2 do
-        gfx.pixel(x, dy, color)
-        gfx.pixel(x + w - 1, dy, color)
+    for dy = y, y + h, 2 do
+        gfx.pixel(x, y + dy, color)
+        gfx.pixel(x + w,y + dy, color)
     end
+end
+
+---Renders a 2D matrix of palette indexes on to the screen
+---@param grid table An 2D matrix of pixel values (Should be a table,
+---containing rows, which are also tables containing pixel values)
+---@param x number The X coordinate of the top-left corner of the image
+---@param y number The Y coordinate of the top-left corner of the image
+---@param w number The total wodth of the image
+---@param h number The total wodth of the image
+---@param palette? table An optional paletyte, which is a table, where each
+---key maps a grid value to a palette index 
+function gfx.render_grid(grid, x, y, w, h, palette)
+    
 end

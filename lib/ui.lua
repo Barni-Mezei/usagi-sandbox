@@ -37,8 +37,13 @@ local M = {
 ---@class UI.Box
 --- This is the basis of ALL other ui items! **Every item has these properties**
 ---@field type     string   The type of this item: "box"
+---@field visible  boolean  Whenever to render this item or not. Hidden items will be consideren non existing
+---@field data?    table    Any custom data, that the user might want to assign to this box
+---@field style?   UI.Style A UI style table
+---@field children table    A list containing child items
 ---@field x        number   The X coordinate of the top-left corner of the box
 ---@field y        number   The Y coordinate of the top-left corner of the box
+---@field fix_size boolean  Toggles whenever to update the size of this item, relative to it's children
 ---@field w        number   The width of the box
 ---@field h        number   The height of the box
 ---@field min_w    number   The minimum allowed width of the box
@@ -47,9 +52,6 @@ local M = {
 ---@field max_h    number   The maximum allowed height of the box
 ---@field mx       number   The outside margin of the box on the X axis
 ---@field my       number   The outside margin of the box on the Y axis
----@field fix_size boolean  Toggles whenever to update the size of this item, relative to it's children
----@field children table    A list containing child items
----@field style?   UI.Style A UI style table
 
 ---@class UI.Label:UI.Box
 --- Same as UI.Box, but has some additional parameters for text rendering
@@ -87,10 +89,10 @@ function M.create_style(outline_color, fill_color, text_color, has_dotted_line)
     local new_style = {}
 
     if type(outline_color) == "table" then
-        new_style.outline_color = -1
-        new_style.fill_color = -1
-        new_style.text_color = gfx.COLOR_WHITE
-        new_style.dotted_line = false
+        new_style.outline_color = outline_color.outline_color or -1
+        new_style.fill_color = outline_color.fill_color or -1
+        new_style.text_color = outline_color.text_color or gfx.COLOR_WHITE
+        new_style.dotted_line = outline_color.dotted_line or false
     else
         new_style.outline_color = outline_color or -1
         new_style.fill_color = fill_color or -1
@@ -115,20 +117,27 @@ end
 ---@return UI.Box box      A new box with all of the necessary fields populated
 function M.create_box(x, y, w, h, mx, my)
     ---@class UI.Box
-    local new_box = {
-        type = "box",
-        children = {},
-        fix_size = false,
-        style = M.create_style(),
-    }
+    local new_box = {}
 
+    ---Appends a child item as a child of the current item
+    ---@param item UI.Box|UI.Label|UI.List The item to append
     function new_box.add_child(item)
+        -- Prevent `item:add_child()` calls
+        if item == new_box then
+            error("Could not append itself as a child! ( Call like a simple function: item.add_child() )")
+        end
+
         table.insert(new_box.children, item)
     end
 
     if type(x) == "table" then
+        new_box.visible = x.visible or true
+        new_box.data = x.data
+        new_box.style = M.create_style(x.style)
+        new_box.children = x.children or {}
         new_box.x = x.x or 0
         new_box.y = x.y or 0
+        new_box.fix_size = x.fix_size or false
         new_box.w = x.w or 0
         new_box.h = x.h or 0
         new_box.min_w = x.min_w or 0
@@ -137,10 +146,12 @@ function M.create_box(x, y, w, h, mx, my)
         new_box.max_h = x.max_h or 1000
         new_box.mx = x.mx or 0
         new_box.my = x.my or 0
-        new_box.style = x.style or M.create_style()
     else
+        new_box.visible = true
+        new_box.children = {}
         new_box.x = x or 0
         new_box.y = y or 0
+        new_box.fix_size = false
         new_box.w = w or 0
         new_box.h = h or 0
         new_box.min_w = 0
@@ -150,6 +161,8 @@ function M.create_box(x, y, w, h, mx, my)
         new_box.mx = mx or 0
         new_box.my = my or 0
     end
+
+    new_box.type = "box"
 
     return new_box
 end
@@ -167,22 +180,25 @@ function M.create_label(text, h_align, v_align, value_hook)
     if type(text) == "table" then
         new_label = M.create_box(text)
         new_label.text = text.text or ""
+        new_label.text_x = text.text_x or 0
+        new_label.text_y = text.text_y or 0
         new_label.v_align = text.v_align or 0
         new_label.h_align = text.h_align or 0
+        new_label.value_hook = text.value_hook
     else
         local w, h = usagi.measure_text(text)
         new_label = M.create_box(0, 0, w, h)
         new_label.text = text or ""
         new_label.v_align = v_align or 0
         new_label.h_align = h_align or 0
+        new_label.value_hook = value_hook
     end
 
     new_label.type = "label"
-    new_label.value_hook = value_hook or nil
 
     -- Create hook endpoint for this label
-    if value_hook ~= nil then
-        M.value_hooks[value_hook] = new_label.text
+    if new_label.value_hook ~= nil then
+        M.value_hooks[new_label.value_hook] = new_label.text
     end
 
     return new_label
@@ -246,6 +262,21 @@ function M.get_hook(value_hook)
     return M.value_hooks[value_hook]
 end
 
+---Shows an item on the screen (sets the visibility to true)
+---@param item UI.Box|UI.Label|UI.List The item to show
+---@return UI.Box|UI.Label|UI.List item The modified item
+function M.show_item(item)
+    item.visible = true
+    return item
+end
+
+---Hides an items (sets the visibility to false)
+---@param item UI.Box|UI.Label|UI.List The item to hide
+---@return UI.Box|UI.Label|UI.List item The modified item
+function M.hide_item(item)
+    item.visible = false
+    return item
+end
 
 ---Updates a label. Should be called after changing the label's text
 ---@param item UI.Label  The label to update
@@ -322,11 +353,11 @@ function M.initialise(item)
 end
 
 ---Aligns a box inside a container box along 2 axis
----@param box    UI.Box|UI.Label The box to align inside the parent 
----@param parent UI.Box|UI.Label The container for the box 
+---@param box    UI.Box The box to align inside the parent 
+---@param parent UI.Box The container for the box 
 ---@param h_align? integer The horizontal alignment of the box (-1: left, 0: center, 1: right )
 ---@param v_align? integer The vertical alignment of the box   (-1: top,  0: center, 1: bottom)
----@return UI.Box|UI.Label box The box, aligned inside the parent 
+---@return UI.Box box The box, aligned inside the parent 
 function M.align_item(box, parent, h_align, v_align)
     local mx = box.mx or 0
     local my = box.my or 0
@@ -352,7 +383,7 @@ function M.align_item(box, parent, h_align, v_align)
         h = box.h,
     }
 
-    return _merge_item(box, out)
+    return out
 end
 
 
@@ -381,12 +412,19 @@ local function _size_update_loop(item)
     end
 
     if item.type == "box" or item.type == "panel" then
-        item.w = math.max(item.min_w, item.w)
-        item.h = math.max(item.min_h, item.h)
+        if item.fix_size then
+            -- Do not change size
+        else
+            -- Shrink to the smallest possible size
+            if #item.children > 0 then
+                item.w = item.min_w
+                item.h = item.min_h
 
-        for _, child in pairs(item.children) do
-            item.w = math.max(item.w, child.w + child.mx * 2)
-            item.h = math.max(item.h, child.h + child.my * 2)
+                for _, child in pairs(item.children) do
+                    item.w = math.max(item.w, child.w + child.mx * 2)
+                    item.h = math.max(item.h, child.h + child.my * 2)
+                end
+            end
         end
     end
 
@@ -419,6 +457,12 @@ local function _size_update_loop(item)
     -- Constrain item sizes
     item.w = math.min(math.max(item.w, item.min_w), item.max_w)
     item.h = math.min(math.max(item.h, item.min_h), item.max_h)
+
+    -- Reset item size if it is not visible
+    if item.visible == false then
+        item.w = 0
+        item.h = 0
+    end
 
     return item
 end
@@ -467,7 +511,7 @@ local function _position_update_loop(item, parent_x, parent_y)
     if item.type == "label" then
         local w, h = usagi.measure_text(item.text)
         local tmp_textbox = M.create_box({w = w, h = h}) ---@diagnostic disable-line: missing-fields
-        tmp_textbox = M.align_item(tmp_textbox, item, item.h_align, item.v_align)
+        tmp_textbox = _merge_item(tmp_textbox, M.align_item(tmp_textbox, item, item.h_align, item.v_align))
 
         item.text_x = tmp_textbox.x
         item.text_y = tmp_textbox.y
@@ -499,6 +543,8 @@ end
 ---@param item        UI.Box|UI.Label|UI.List The UI item to render (can be a box or a label) 
 ---@param debug_mode? boolean                 Render box outlines?
 function M.render_item(item, debug_mode)
+    if item.visible == false then return end
+
     local render_outline = false
     local outline_color = gfx.COLOR_RED
     local render_fill = false
@@ -602,7 +648,7 @@ function M.update(mouse_x, mouse_y)
         _size_update_loop(panel)
 
         -- Align panel on the screen
-        M.panels[i] = M.align_item(panel, M.screen_box, panel.h_align, panel.v_align)
+        M.panels[i] = _merge_item(panel, M.align_item(panel, M.screen_box, panel.h_align, panel.v_align))
     end
 
     -- Calculate item positions
